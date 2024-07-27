@@ -179,7 +179,7 @@ class TelegramAPI {
                         $emoji = "\u{1F949}"; // 🥉 3-е место
                         break;
                 }
-                $leaderboard[] = "$emoji Место $place: {$row['username']} - {$row['score']} очков";
+                $leaderboard[] = "$emoji Место $place: {$row['username']} - {$row['score']} балл";
                 $place++;
             }
             
@@ -233,30 +233,43 @@ class TelegramAPI {
     }
     
     /**
-     * Summary of getAvailableTournaments
-     * @param mixed $log
-     * @return string[][]
-     */
-    public function getAvailableTournaments($log = false) {
-        $query = "SELECT id, name FROM gametournaments WHERE status = 'active' ORDER BY created_at ASC LIMIT 10";
-        $result = $this->db->query($query);
-    
-        $tournaments = [];
-        if ($result->num_rows > 0) {
-            while ($row = $result->fetch_assoc()) {
-                $tournaments[] = [
-                    'text' => "Турнир: {$row['name']}",
-                    'callback_data' => "tournament_{$row['id']}"
-                ];
-            }
+ * Summary of getAvailableTournaments
+ * @param mixed $chatId
+ * @param mixed $log
+ * @return string[][]
+ */
+public function getAvailableTournaments($chatId, $log = false) {
+    // Получаем текущий турнир пользователя
+    $currentTournamentId = $this->getUserCurrentTournament($chatId);
+
+    // Запрос на получение доступных турниров, исключая те, в которых пользователь участвует
+    $query = "SELECT id, name FROM gametournaments 
+              WHERE status = 'active' 
+              AND id <> ? 
+              ORDER BY created_at ASC 
+              LIMIT 10";
+    $stmt = $this->db->prepare($query);
+    $stmt->bind_param("i", $currentTournamentId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $tournaments = [];
+    if ($result->num_rows > 0) {
+        while ($row = $result->fetch_assoc()) {
+            $tournaments[] = [
+                'text' => "Турнир: {$row['name']}",
+                'callback_data' => "tournament_{$row['id']}"
+            ];
         }
-        
-        if ($this->logEnabled || $log) {
-            $this->logDebug("getAvailableTournaments: " . print_r($tournaments, true));
-        }
-        
-        return $tournaments;
     }
+
+    if ($this->logEnabled || $log) {
+        $this->logDebug("getAvailableTournaments: " . print_r($tournaments, true));
+    }
+
+    return $tournaments;
+}
+
 
     /**
      * Summary of setUserState
@@ -416,15 +429,15 @@ class TelegramAPI {
              
             switch ($result) { 
                 case 'draw': 
-                    // Никто из игроков не получает очков, игроку player1ChatId необходимо вернуть 1 балл 
+                    // Никто из игроков не получает балов, игроку player1ChatId необходимо вернуть 1 балл 
                     $this->updateUserScore($player1ChatId, $this->getUserScore($player1ChatId) + 1); 
                     break; 
                 case 'Player 1 wins': 
-                    // Игроку player1ChatId добавить 1 очко за создание турнира и 2 очка за выигрыш 
+                    // Игроку player1ChatId добавить 1 балов за создание турнира и 2 бала за выигрыш 
                     $this->updateUserScore($player1ChatId, $this->getUserScore($player1ChatId) + 3); 
                     break; 
                 case 'Player 2 wins': 
-                    // Игроку player2ChatId добавить 2 очка за выигрыш 
+                    // Игроку player2ChatId добавить 2 бала за выигрыш 
                     $this->updateUserScore($player2ChatId, $this->getUserScore($player2ChatId) + 2); 
                     break; 
             }
