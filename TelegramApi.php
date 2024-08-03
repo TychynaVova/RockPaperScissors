@@ -257,7 +257,7 @@ public function getAvailableTournaments($chatId, $log = false) {
     if ($result->num_rows > 0) {
         while ($row = $result->fetch_assoc()) {
             $tournaments[] = [
-                'text' => "Турнир: {$row['name']}",
+                'text' => "Матч: {$row['id']} - {$row['name']}",
                 'callback_data' => "tournament_{$row['id']}"
             ];
         }
@@ -476,7 +476,7 @@ public function getAvailableTournaments($chatId, $log = false) {
         ) { 
             return "Игрок, который создал игру выиграл"; 
         } 
-        return 'Вы выиграли'; 
+        return 'Вы проиграли'; 
     } 
  
     /**
@@ -488,8 +488,17 @@ public function getAvailableTournaments($chatId, $log = false) {
      * @return void
      */
     private function sendResultNotification($tournamentId, $player1ChatId, $player2ChatId, $result) { 
-        $this->sendMessage($player1ChatId, "Результат поединка: $tournamentId: $result"); 
-        $this->sendMessage($player2ChatId, "Результат поединка: $tournamentId: $result"); 
+        if ($result === 'Ничья') {
+            $message = "Результат поединка -$tournamentId: $result";
+            $this->sendMessage($player1ChatId, $message); 
+            $this->sendMessage($player2ChatId, $message); 
+        } else if ($result === 'Игрок, который создал игру выиграл') {
+            $this->sendMessage($player1ChatId, "Результат поединка - $tournamentId: Вы выиграли!"); 
+            $this->sendMessage($player2ChatId, "Результат поединка - $tournamentId: Вы проиграли!"); 
+        } else {
+            $this->sendMessage($player1ChatId, "Результат поединка - $tournamentId: Вы проиграли!"); 
+            $this->sendMessage($player2ChatId, "Результат поединка - $tournamentId: Вы выиграли!"); 
+        }
     } 
  
     /**

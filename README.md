@@ -6,6 +6,11 @@
 ## Изменения
 
 ### Версионность
+![version](https://img.shields.io/badge/version-1.0.2-blue)
+
+### Исправления
+- Исправлены мелкие ошибки по коду.
+
 ![version](https://img.shields.io/badge/version-1.0.1-blue)
 
 ### Исправления

@@ -7,7 +7,7 @@ require_once 'TelegramApi.php';
 require_once 'Logger.php';
 $config = require_once 'config.php';
 
-$logger = new Logger('log.txt', $config['logEnabled'], Logger::LOG_LEVEL_NONE);
+$logger = new Logger('log.txt', $config['logEnabled'], Logger::LOG_LEVEL_INFO);
 $telegram = new TelegramAPI($config['botToken'], $config['dbHost'], $config['dbUser'], $config['dbPass'], $config['dbName']);
 
 $update = json_decode(file_get_contents('php://input'), true);
@@ -71,10 +71,15 @@ if (isset($update['message'])) {
     $username = $message['from']['username'];
 
     if ($text === '/start') {
-        $telegram->createUser($chatId, $username);
-        $telegram->setUserState($chatId, 'idle');
-        $telegram->sendMessage($chatId, 'Добро пожаловать в игровой бот! Выберите действие:', $keyboard_menu);
-        $logger->logInfo("User $chatId started the bot");
+        if (empty($username)) {
+            $telegram->sendMessage($chatId, "Ваше имя пользователя не найдено. Пожалуйста, введите ваш username:");
+            $telegram->setUserState($chatId, 'waiting_for_username');
+        } else {
+            $telegram->createUser($chatId, $username);
+            $telegram->setUserState($chatId, 'idle');
+            $telegram->sendMessage($chatId, 'Добро пожаловать в игровой бот! Выберите действие:', $keyboard_menu);
+            $logger->logInfo("User $chatId started the bot");
+        }
     } else {
         $state = $telegram->getUserState($chatId);
         $logger->logDebug("State user $chatId: $state");
@@ -226,6 +231,17 @@ if (isset($update['callback_query'])) {
                     $telegram->sendMessage($chatId, "Ваш выбор сохранен. Ожидайте выбор второго игрока.", $return_menu);
                     $telegram->setUserState($chatId, 'idle');
                 }
+            } elseif ($state === 'waiting_for_username') {
+                $username = trim($text);
+                if (!empty($username)) {
+                    $telegram->createUser($chatId, $username);
+                    $telegram->setUserState($chatId, 'idle');
+                    $telegram->sendMessage($chatId, 'Ваш username сохранен. Добро пожаловать в игровой бот! Выберите действие:', $keyboard_menu);
+                    $logger->logInfo("User $chatId provided username $username");
+                } else {
+                    $telegram->sendMessage($chatId, 'Username не может быть пустым. Пожалуйста, введите ваш username:');
+                    $logger->logError("User $chatId provided an empty username");
+                }
             }
             break;
         case (preg_match('/^tournament_\d+$/', $data) ? $data : null):
@@ -241,7 +257,12 @@ if (isset($update['callback_query'])) {
                 ],
             ];
 
-            $telegram->sendMessage($chatId, "Вы выбрали поединок с ID: $tournamentId. Сделайте свой выбор:", $keyboard_game_response);
+            $callbackText = $callbackQuery['message']['reply_markup']['inline_keyboard'][0][0]['text'];
+            preg_match('/- (.+)$/', $callbackText, $matches);
+            $matchName = $matches[1] ?? 'Неизвестный матч';
+
+            $telegram->sendMessage($chatId, "Вы выбрали поединок с ID: $tournamentId '$matchName'. Сделайте свой выбор:", $keyboard_game_response);
+            //$telegram->sendMessage($chatId, "Вы выбрали поединок с ID: $tournamentId. Сделайте свой выбор:", $keyboard_game_response);
             $telegram->setUserState($chatId, 'waiting_for_choice_result');
             $telegram->setUserCurrentTournament($chatId, $tournamentId);
             $logger->logInfo("User $chatId chose tournament $tournamentId");
@@ -252,7 +273,8 @@ if (isset($update['callback_query'])) {
                 $logger->logDebug("Waiting for choice result: prefix=$prefix, tournamentId=$tournamentId, userChoice=$userChoice");
                 if ($prefix === 'choice') {
                     $telegram->updateMatchResult($tournamentId, null, null, $chatId, $userChoice);
-                    $telegram->sendMessage($chatId, "Ваш выбор сохранен. Результат игры будет объявлен когда ваш поединок будет сыгран.");
+                    $telegram->sendMessage($chatId, "Вернуться в меню", $return_menu);
+                    //$telegram->sendMessage($chatId, "Ваш выбор сохранен. Результат игры будет объявлен когда ваш поединок будет сыгран.");
                     $telegram->setUserState($chatId, 'idle');
                 }
             }
